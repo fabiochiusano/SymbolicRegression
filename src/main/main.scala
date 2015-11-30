@@ -55,6 +55,8 @@ object GPTrees {
       val newTrees = treesFromCrossover ::: treesFromReproduce ::: treesFromMutation
       new Population(newTrees, numOfTrees, minConst, maxConst, numOfVars, maxHeight)
     }
+    
+    override def toString: String = (for (i <- (1 to numOfTrees).toList) yield ("Tree " + i.toString + " : " + trees(i).toString)).mkString("\n")
   }
 
   abstract class Tree {
@@ -203,39 +205,24 @@ object GPTrees {
       else BinFuncNode(op, shortTree, longTree)
     }
   }
-                                                  
-  def nextGeneration(trees: List[Tree], expected: List[(Map[String, Double], Double)], minConst: Int, maxConst: Int, numVars: Int): List[Tree] = {
-    val pairList = for{
-      tree <- trees
-    } yield (tree, expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _))
-    val sortedPairList = pairList.sortBy(x => x._2).map(x => x._1)
-    val repr = sortedPairList(0).reproduce
-    val (cross1, cross2) = sortedPairList(0).crossover(sortedPairList(1))
-    val mut = sortedPairList(1).mutate(minConst, maxConst, numVars)
-    List(repr, cross1, cross2, mut)
-  }
   
   def run = {
-    val a = getRandomTree(2,4,-5,5,1)
-    val b = getRandomTree(2,4,-5,5,1)
-    val c = getRandomTree(2,4,-5,5,1)
-    val d = getRandomTree(2,4,-5,5,1)
-    
-    val l1 = List(a,b,c,d)
-    
+    val pop1 = new Population(6, -2, 2, 1, 5)
     val expected = List((Map("x" -> -1.0), 1.0), (Map("x" -> 1.0), 3.0), (Map("x" -> 0.0), 1.0), (Map("x" -> 3.0), 13.0))
     
-    val l2 = nextGeneration(l1, expected, -5, 5, 1)
-    val l3 = nextGeneration(l2, expected, -5, 5, 1)
-    val l4 = nextGeneration(l3, expected, -5, 5, 1)
+    val pop2 = pop1.nextGeneration(expected)
+    val pop3 = pop2.nextGeneration(expected)
+    val pop4 = pop3.nextGeneration(expected)
+    val pop5 = pop4.nextGeneration(expected)
     
-    println("Pop 1 : " + l1)
-    println("Fitnesses : " + l1.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
-    println("Pop 2 : " + l2)
-    println("Fitnesses : " + l2.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
-    println("Pop 3 : " + l3)
-    println("Fitnesses : " + l4.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
-    println("Pop 4 : " + l4)
-    println("Fitnesses : " + l4.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
+    println(pop1)
+    //println("Fitnesses : " + pop1.trees.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
+    println(pop2)
+    //println("Fitnesses : " + l2.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
+    println(pop3)
+    //println("Fitnesses : " + l4.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
+    println(pop4)
+    //println("Fitnesses : " + l4.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
+    println(pop5)
   }
 }
