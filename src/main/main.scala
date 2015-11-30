@@ -12,9 +12,9 @@ object main {
 object GPTrees {
 
   val r = scala.util.Random
-  
+
   def getRandomIntIn(low: Int, high: Int) = low + r.nextInt(high - low + 1)
-  
+
   class Population(numOfTrees: Int, constMin: Int, constMax: Int, numOfVars: Int, maxHeight: Int) {
     val trees: List[Tree] = for (i <- (1 to numOfTrees).toList) yield getRandomTree(1, maxHeight, constMin, constMax, numOfVars)
   }
@@ -24,7 +24,7 @@ object GPTrees {
     def eval(mapId: Map[String, Double]): Double
     def height: Int
     def randomNode(h: Int): Tree
-    
+
     // Reproduction.
     def update(oldNode: Tree, newNode: Tree): Tree
     def mutate(constMin: Int, constMax: Int, numOfVars: Int): Tree = {
@@ -33,7 +33,7 @@ object GPTrees {
       val newNode = nodeToMutate match {
         case BinFuncNode(op, l, r) => BinFuncNode(getRandomOp, l, r)
         case _ =>
-          if (getRandomIntIn(1,2) == 1) ConstTermNode(getRandomIntIn(constMin, constMax))
+          if (getRandomIntIn(1, 2) == 1) ConstTermNode(getRandomIntIn(constMin, constMax))
           else IdTermNode(getRandomId(numOfVars))
       }
       this.update(nodeToMutate, newNode)
@@ -46,36 +46,36 @@ object GPTrees {
     }
     def reproduce: Tree = this
   }
-  
+
   abstract class FuncNode extends Tree
   case class BinFuncNode(f: Op, l: Tree, r: Tree) extends FuncNode {
     // General.
     def eval(mapId: Map[String, Double]): Double = f match {
-      case PlusOp => l.eval(mapId) + r.eval(mapId)
+      case PlusOp  => l.eval(mapId) + r.eval(mapId)
       case MinusOp => l.eval(mapId) - r.eval(mapId)
       case TimesOp => l.eval(mapId) * r.eval(mapId)
       case DivOp =>
         val (num, den) = (l.eval(mapId), r.eval(mapId))
-        if (den == 0) 1 else num/den
+        if (den == 0) 1 else num / den
     }
     def height: Int = Math.max(l.height, r.height) + 1
     def randomNode(h: Int): Tree = {
       if (this.height == h) this
       else {
-        if (l.height >= h && r.height >= h) if (getRandomIntIn(1,2) == 1) l.randomNode(h) else r.randomNode(h)
-          else if (l.height >= h) l.randomNode(h)
-          else if (r.height >= h) r.randomNode(h)
-          else this
+        if (l.height >= h && r.height >= h) if (getRandomIntIn(1, 2) == 1) l.randomNode(h) else r.randomNode(h)
+        else if (l.height >= h) l.randomNode(h)
+        else if (r.height >= h) r.randomNode(h)
+        else this
       }
     }
-    
+
     // Reproduction.
     def update(oldNode: Tree, newNode: Tree): Tree =
       if (this == oldNode) newNode else BinFuncNode(f, l.update(oldNode, newNode), r.update(oldNode, newNode))
-    
+
     override def toString = "(" + l.toString + " " + f.toString + " " + r.toString + ")"
   }
-  
+
   abstract class TermNode extends Tree {
     // General.
     lazy val height: Int = 1
@@ -84,22 +84,22 @@ object GPTrees {
   case class ConstTermNode(n: Double) extends TermNode {
     // General
     def eval(mapId: Map[String, Double]): Double = n
-    
+
     // Reproduction.
     def update(oldNode: Tree, newNode: Tree): Tree = if (this == oldNode) newNode else this
-    
+
     override def toString = n.toString
   }
   case class IdTermNode(name: String) extends TermNode {
     // General
     def eval(mapId: Map[String, Double]): Double = mapId(name)
-    
+
     // Reproduction.
     def update(oldNode: Tree, newNode: Tree): Tree = if (this == oldNode) newNode else this
-    
+
     override def toString = name
   }
-  
+
   abstract class Op
   object PlusOp extends Op {
     override def toString = "+"
@@ -113,16 +113,16 @@ object GPTrees {
   object DivOp extends Op {
     override def toString = "/"
   }
-  
+
   def getRandomId(numOfVars: Int): String = {
     val a = r.nextInt(numOfVars)
     if (a == 0) "x"
     else if (a == 1) "y"
     else "z"
   }
-  
+
   def getRandomProb: Int = r.nextInt(101)
-  
+
   def getRandomOp: Op = {
     val a = getRandomProb
     if (a <= 25) PlusOp
@@ -130,24 +130,22 @@ object GPTrees {
     else if (a <= 75) TimesOp
     else DivOp
   }
-  
+
   def getRandomTermNode(constMin: Int, constMax: Int, numOfVars: Int): TermNode = {
     val a = getRandomProb
     if (a <= 50) ConstTermNode(getRandomIntIn(constMin, constMax))
     else IdTermNode(getRandomId(numOfVars))
   }
-  
+
   def getRandomTree(minH: Int, maxH: Int, constMin: Int, constMax: Int, numOfVars: Int): Tree = {
     if (minH == 1) {
       if (maxH == 1) {
         getRandomTermNode(constMin, constMax, numOfVars)
-      }
-      else {
+      } else {
         val a = getRandomProb
         if (a <= 50.0) {
           getRandomTermNode(constMin, constMax, numOfVars)
-        }
-        else {
+        } else {
           val op = getRandomOp
           val lH = getRandomIntIn(1, maxH - 1)
           val rH = getRandomIntIn(1, maxH - 1)
@@ -156,8 +154,7 @@ object GPTrees {
           BinFuncNode(op, l, r)
         }
       }
-    }
-    else {
+    } else {
       val op = getRandomOp
       val lH = getRandomIntIn(minH - 1, maxH - 1)
       val sH = getRandomIntIn(1, maxH - 1)
@@ -168,41 +165,39 @@ object GPTrees {
       else BinFuncNode(op, shortTree, longTree)
     }
   }
-                                                  
+
   def nextGeneration(trees: List[Tree], expected: List[(Map[String, Double], Double)], minConst: Int, maxConst: Int, numVars: Int): List[Tree] = {
-    val pairList = for{
+    val pairList = for {
       tree <- trees
-    } yield (tree, expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _))
+    } yield (tree, expected.map { case (env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _))
     val sortedPairList = pairList.sortBy(x => x._2).map(x => x._1)
     val repr = sortedPairList(0).reproduce
     val (cross1, cross2) = sortedPairList(0).crossover(sortedPairList(1))
     val mut = sortedPairList(1).mutate(minConst, maxConst, numVars)
     List(repr, cross1, cross2, mut)
   }
-  
+
   def run = {
-    val a = getRandomTree(2,4,-5,5,1)
-    val b = getRandomTree(2,4,-5,5,1)
-    val c = getRandomTree(2,4,-5,5,1)
-    val d = getRandomTree(2,4,-5,5,1)
+    print("Number of trees: ")
+    val numOfTrees = readLine.toInt
+    print("Max height: ")
+    val maxHeight = readLine.toInt
+    print("Min and max constant: ")
+    val Array(minConst, maxConst) = readLine.split(' ').map(x => x.toInt)
+    print("Number of variables: ")
+    val numOfVars = readLine.toInt
+    print("Number of environments: ")
+    val numOfEnv = readLine.toInt
+    val environments = (for(i <- 1 to numOfEnv) yield {
+      print("Environment number " + i + " (please list all the variables in order and then the expected result): ")
+      val nums = readLine.split(' ').map(x => x.toInt)
+      val binds = for(j <- 0 until numOfVars) yield (('a' + j).toString, nums(j))
+      val expected = nums(numOfVars)
+      (binds.toMap, expected)
+    }).toList
     
-    val l1 = List(a,b,c,d)
+    val initialPopulation = new Population(numOfTrees, minConst, maxConst, numOfVars, maxHeight)
     
-    val expected = List((Map("x" -> -1.0), 1.0), (Map("x" -> 1.0), 3.0), (Map("x" -> 0.0), 1.0), (Map("x" -> 3.0), 13.0))
-    
-    val l2 = nextGeneration(l1, expected, -5, 5, 1)
-    val l3 = nextGeneration(l2, expected, -5, 5, 1)
-    val l4 = nextGeneration(l3, expected, -5, 5, 1)
-    
-    println("Pop 1 : " + l1)
-    println("Fitnesses : " + l1.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
-    println("Pop 2 : " + l2)
-    println("Fitnesses : " + l2.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
-    println("Pop 3 : " + l3)
-    println("Fitnesses : " + l4.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
-    println("Pop 4 : " + l4)
-    println("Fitnesses : " + l4.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
+    val generations: Stream[Population] = initialPopulation #:: generations.map(p => )
   }
 }
-
-object useless
