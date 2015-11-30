@@ -14,6 +14,10 @@ object GPTrees {
   val r = scala.util.Random
   
   def getRandomIntIn(low: Int, high: Int) = low + r.nextInt(high - low + 1)
+  
+  class Population(numOfTrees: Int, constMin: Int, constMax: Int, numOfVars: Int, maxHeight: Int) {
+    val trees: List[Tree] = for (i <- (1 to numOfTrees).toList) yield getRandomTree(1, maxHeight, constMin, constMax, numOfVars)
+  }
 
   abstract class Tree {
     // General
