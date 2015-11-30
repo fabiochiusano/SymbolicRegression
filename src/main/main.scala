@@ -200,3 +200,5 @@ object GPTrees {
     println("Fitnesses : " + l4.map(tree => expected.map{ case(env, n) => Math.abs(tree.eval(env) - n) }.foldRight(0.0)(_ + _)))
   }
 }
+
+object useless
