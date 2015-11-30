@@ -20,7 +20,7 @@ object GPTrees {
     else if (getRandomIntIn(low, low + 1) == low) low
     else getRandomIntFromGeometric(low + 1, max)
 
-  class Population(trees: List[Tree], numOfTrees: Int, minConst: Int, maxConst: Int, numOfVars: Int, maxHeight: Int) {
+    case class Population(trees: List[Tree], numOfTrees: Int, minConst: Int, maxConst: Int, numOfVars: Int, maxHeight: Int) {
     // Constructors.
     def this(numOfTrees: Int, minConst: Int, maxConst: Int, numOfVars: Int, maxHeight: Int) =
       this(for (i <- (1 to numOfTrees).toList)
@@ -43,20 +43,20 @@ object GPTrees {
       val numOfMutation = numOfTrees - numOfCrossover - numOfReproduce
       def getRandomCrossoverFromSortedTrees(sortedTrees: List[Tree]): (Tree, Tree) = {
         val i1 = getRandomIntFromGeometric(1, sortedTrees.length)
-        val parent1 = sortedTrees(i1)
+        val parent1 = sortedTrees(i1 - 1)
         val newSortedPairList = sortedTrees.filter(tree => tree != parent1)
         val i2 = getRandomIntFromGeometric(1, newSortedPairList.length)
-        val parent2 = newSortedPairList(i2)
+        val parent2 = newSortedPairList(i2 - 1)
         parent1.crossover(parent2)
       }
       val treesFromCrossover = (for (i <- (1 to numOfCrossover by 2).toList) yield getRandomCrossoverFromSortedTrees(sortedTrees)).map(pair => List(pair._1, pair._2)).flatten
-      val treesFromReproduce = for (i <- (1 to numOfReproduce).toList) yield sortedTrees(getRandomIntFromGeometric(1, sortedTrees.length))
-      val treesFromMutation = for (i <- (1 to numOfMutation).toList) yield sortedTrees(getRandomIntFromGeometric(1, sortedTrees.length)).mutate(minConst, maxConst, numOfVars)
+      val treesFromReproduce = for (i <- (1 to numOfReproduce).toList) yield sortedTrees(getRandomIntFromGeometric(1, sortedTrees.length) - 1)
+      val treesFromMutation = for (i <- (1 to numOfMutation).toList) yield sortedTrees(getRandomIntFromGeometric(1, sortedTrees.length) - 1).mutate(minConst, maxConst, numOfVars)
       val newTrees = treesFromCrossover ::: treesFromReproduce ::: treesFromMutation
       new Population(newTrees, numOfTrees, minConst, maxConst, numOfVars, maxHeight)
     }
 
-    override def toString: String = (for (i <- (1 to numOfTrees).toList) yield ("Tree " + i.toString + " : " + trees(i).toString)).mkString("\n")
+    override def toString: String = (for (i <- (1 to numOfTrees).toList) yield ("Tree " + i.toString + " : " + trees(i-1).toString)).mkString("\n")
   }
 
   abstract class Tree {
@@ -207,6 +207,8 @@ object GPTrees {
   }
 
   def run = {
+    print("Number of generations: ")
+    val numOfGens = readLine.toInt
     print("Number of trees: ")
     val numOfTrees = readLine.toInt
     print("Max height: ")
@@ -220,13 +222,21 @@ object GPTrees {
     val environments = (for (i <- 1 to numOfEnv) yield {
       print("Environment number " + i + " (please list all the variables in order and then the expected result): ")
       val nums = readLine.split(' ').map(x => x.toInt)
-      val binds = for (j <- 0 until numOfVars) yield (('a' + j).toString, nums(j))
+      val binds = for (j <- 0 until numOfVars) yield (('x' + j).toChar.toString, nums(j).toDouble)
       val expected = nums(numOfVars)
-      (binds.toMap, expected)
+      (binds.toMap, expected.toDouble)
     }).toList
 
     val initialPopulation = new Population(numOfTrees, minConst, maxConst, numOfVars, maxHeight)
-
-    //val generations: Stream[Population] = initialPopulation #:: generations.map(p => )
+    
+    def generations(n: Int): List[Population] = if (n == 1) List(initialPopulation) else {
+      val gens = generations(n - 1)
+      val newPop = gens.head.nextGeneration(environments)
+      newPop :: gens
+    }
+    
+    val gens = generations(numOfGens)
+    
+    println(gens.reverse.map(p => "Population " + (gens.length-gens.indexOf(p)) + " :\n" + p.toString()).mkString("\n"))
   }
 }
