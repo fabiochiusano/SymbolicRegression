@@ -198,6 +198,6 @@ object GPTrees {
     
     val initialPopulation = new Population(numOfTrees, minConst, maxConst, numOfVars, maxHeight)
     
-    val generations: Stream[Population] = initialPopulation #:: generations.map(p => )
+    //val generations: Stream[Population] = initialPopulation #:: generations.map(p => )
   }
 }
