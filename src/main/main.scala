@@ -1,11 +1,55 @@
 package main
 
+import scala.util.Random
+
 /**
- * @author fabiochiusano
+ * @author fabiochiusano & tommasobianchi
  */
 object main {
   def main(args: Array[String]) {
-    GPTrees.run
+    mainMultithread(args)
+  }
+  
+  def mainNormal(args: Array[String]) = {
+    Random.setSeed(System.currentTimeMillis)
+    println("-- Starting simulations -- \n\n")
+    val numOfSims = 100
+    lazy val results: Stream[() => Double] = (() => GPTrees.run) #:: results
+    val startTime = System.currentTimeMillis / 1000.0
+    val resList = results.take(numOfSims).toList.map(f => f())
+    val endTime = System.currentTimeMillis / 1000.0
+    println("\n\n" + numOfSims + " simulations run in " + (endTime - startTime) + " seconds\n")
+    println("Final fitnesses recorded: " + resList.mkString(" "))
+    println("Average: " + resList.sum / numOfSims + " Min: " + resList.min + " Max: " + resList.max + " Zeros: " +
+      resList.filter(x => Math.abs(x) < 0.0000001).length)
+  }
+
+  //Multithreaded version
+  def mainMultithread(args: Array[String]) = {
+    import scala.concurrent._
+    import duration._
+    import ExecutionContext.Implicits.global
+
+    Random.setSeed(System.currentTimeMillis)
+    println("-- Starting simulations -- \n\n")
+    val numOfSims = 100
+
+    val startTime = System.currentTimeMillis / 1000.0
+    val tasks: Seq[Future[Double]] = for (i <- (1 to numOfSims)) yield future {
+      //println("Executing task " + i)
+      GPTrees.run
+    }
+
+    val aggregated: Future[Seq[Double]] = Future.sequence(tasks)
+
+    val resList: Seq[Double] = Await.result(aggregated, (15 * numOfSims).seconds)
+    
+    val endTime = System.currentTimeMillis / 1000.0
+
+    println("\n\n" + numOfSims + " simulations run in " + (endTime - startTime) + " seconds\n")
+    println("Final fitnesses recorded: " + resList.mkString(" "))
+    println("Average: " + resList.sum / numOfSims + " Min: " + resList.min + " Max: " + resList.max + " Zeros: " +
+      resList.filter(x => Math.abs(x) < 0.0000001).length)
   }
 }
 
@@ -15,16 +59,21 @@ object GPTrees {
 
   def getRandomIntIn(low: Int, high: Int) = low + r.nextInt(high - low + 1)
 
+  def getRandomIntInWithoutZero(low: Int, high: Int): Int = {
+    val res = low + r.nextInt(high - low + 1)
+    if (res == 0) getRandomIntInWithoutZero(low, high) else res
+  }
+
   def getRandomIntFromGeometric(low: Int, max: Int, step: Int): Int =
     if (low == max) low
     else if (getRandomIntIn(1, step) == 1) low
     else getRandomIntFromGeometric(low + 1, max, step)
-    
-    case class Population(trees: List[Tree], numOfTrees: Int, minConst: Int, maxConst: Int, numOfVars: Int, maxHeight: Int) {
+
+  case class Population(trees: List[Tree], numOfTrees: Int, minConst: Int, maxConst: Int, numOfVars: Int, maxHeight: Int) {
     // Constructors.
     def this(numOfTrees: Int, minConst: Int, maxConst: Int, numOfVars: Int, maxHeight: Int) =
       this(for (i <- (1 to numOfTrees).toList)
-        yield getRandomTree(3, maxHeight, minConst, maxConst, numOfVars).simplify, numOfTrees, minConst, maxConst, numOfVars, maxHeight)
+        yield getRandomTree(3, maxHeight, minConst, maxConst, numOfVars), numOfTrees, minConst, maxConst, numOfVars, maxHeight)
 
     // Next generation.
     def nextGeneration(expected: List[(Map[String, Double], Double)]): Population = {
@@ -52,32 +101,31 @@ object GPTrees {
         parent1.crossover(parent2)
       }
       val treesFromCrossover = (for (i <- (1 to numOfCrossover by 2).toList) yield getRandomCrossoverFromSortedTrees(sortedTrees)).map(pair => List(pair._1, pair._2)).flatten
-      val treesFromReproduce = sortedTrees.take(numOfReproduce)//for (i <- (1 to numOfReproduce).toList) yield sortedTrees(getRandomIntFromGeometric(1, sortedTrees.length) - 1)
+      val treesFromReproduce = sortedTrees.take(numOfReproduce) //for (i <- (1 to numOfReproduce).toList) yield sortedTrees(getRandomIntFromGeometric(1, sortedTrees.length) - 1)
       val treesFromMutation = for (i <- (1 to numOfMutation).toList) yield sortedTrees(getRandomIntFromGeometric(1, sortedTrees.length, sortedTrees.length / 4) - 1).mutate(minConst, maxConst, numOfVars)
       val treesFromRandom = for (i <- (1 to numOfRandom).toList) yield getRandomTree(3, maxHeight, minConst, maxConst, numOfVars).simplify
-      val newTrees = (treesFromCrossover ::: treesFromReproduce ::: treesFromMutation ::: treesFromRandom).map { 
-        t => if(getRandomIntIn(1, numOfTrees) == 1) t.simplify else t }
+      val newTrees = treesFromCrossover ::: treesFromReproduce ::: treesFromMutation ::: treesFromRandom
       new Population(newTrees, numOfTrees, minConst, maxConst, numOfVars, maxHeight)
     }
-    
+
     def getHighestFitness(expected: List[(Map[String, Double], Double)]): (Tree, Double) = {
-      val treeAndErrors = for (tree <- trees) yield (tree, expected.map{case (env, y) => Math.abs(tree.eval(env) - y)}.foldLeft(0.0)(_ + _))
+      val treeAndErrors = for (tree <- trees) yield (tree, expected.map { case (env, y) => Math.abs(tree.eval(env) - y) }.foldLeft(0.0)(_ + _))
       treeAndErrors.sortBy(x => x._2).last
     }
-    
+
     def getLowestFitness(expected: List[(Map[String, Double], Double)]): (Tree, Double) = {
-      val treeAndErrors = for (tree <- trees) yield (tree, expected.map{case (env, y) => Math.abs(tree.eval(env) - y)}.foldLeft(0.0)(_ + _))
+      val treeAndErrors = for (tree <- trees) yield (tree, expected.map { case (env, y) => Math.abs(tree.eval(env) - y) }.foldLeft(0.0)(_ + _))
       treeAndErrors.sortBy(x => x._2).head
     }
-    
-    override def toString: String = (for (i <- (1 to numOfTrees).toList) yield ("Tree " + i.toString + " : " + trees(i-1).toString)).mkString("\n")
+
+    override def toString: String = (for (i <- (1 to numOfTrees).toList) yield ("Tree " + i.toString + " : " + trees(i - 1).toString)).mkString("\n")
   }
 
   abstract class Tree {
     // General
-    def eval(mapId: Map[String, Double]): Double
     def height: Int
     def randomNode(h: Int): Tree
+    def eval(mapId: Map[String, Double]): Double
 
     // Reproduction.
     def update(oldNode: Tree, newNode: Tree): Tree
@@ -99,7 +147,7 @@ object GPTrees {
       (this.update(n1, n2), other.update(n2, n1))
     }
     def reproduce: Tree = this
-    
+
     //util
     def simplify: Tree = {
       var t = this
@@ -107,16 +155,16 @@ object GPTrees {
       def simplifyAux(t: Tree): Tree = t match {
         case BinFuncNode(f, l, r) => (l, r) match {
           case (ConstTermNode(n1), ConstTermNode(n2)) => f match {
-            case PlusOp => ConstTermNode(n1 + n2)
+            case PlusOp  => ConstTermNode(n1 + n2)
             case MinusOp => ConstTermNode(n1 - n2)
             case TimesOp => ConstTermNode(n1 * n2)
-            case DivOp => if(n2 != 0) ConstTermNode(n1 / n2) else ConstTermNode(scala.Double.MaxValue)
+            case DivOp   => if (n2 != 0) ConstTermNode(n1 / n2) else ConstTermNode(scala.Double.MaxValue)
           }
-          case (IdTermNode(n1), IdTermNode(n2)) if(n1 == n2) => f match {
-            case PlusOp => t
+          case (IdTermNode(n1), IdTermNode(n2)) if (n1 == n2) => f match {
+            case PlusOp  => t
             case MinusOp => ConstTermNode(0.0)
             case TimesOp => t
-            case DivOp => ConstTermNode(1.0)
+            case DivOp   => ConstTermNode(1.0)
           }
           case _ => BinFuncNode(f, simplifyAux(l), simplifyAux(r))
         }
@@ -242,7 +290,8 @@ object GPTrees {
     }
   }
 
-  def run = {
+  def run: Double = {
+    val startTime = System.currentTimeMillis() / 1000.0
     /*print("Number of generations: ")
     val numOfGens = readLine.toInt
     print("Number of trees: ")
@@ -262,32 +311,41 @@ object GPTrees {
       val expected = nums(numOfVars)
       (binds.toMap, expected.toDouble)
     }).toList*/
-    val numOfGens = 100
-    val numOfTrees = 100
-    val maxHeight = 15
+    val numOfGens = 200
+    val numOfTrees = 200
+    val maxHeight = 13
     val Array(minConst, maxConst) = Array(-5, 5)
-    val numOfVars = 2
-    val numOfEnv = 21*21
+    val numOfVars = 3
+    val numOfEnv = 30
     //val environments = List((Map("a" -> -3.0), 7.0),(Map("a" -> -2.0), 3.0),(Map("a" -> -1.0), 1.0),(Map("a" -> 0.0), 1.0),
     //    (Map("a" -> 1.0), 3.0),(Map("a" -> 2.0), 7.0),(Map("a" -> 3.0), 13.0))
-    val environments = (for(i <- -20 to 20 by 2; j <- -20 to 20 by 2) yield {
-      val value = i * j - 1 + 2 * i - 7 * j
-      (Map("a" -> i.toDouble, "b" -> j.toDouble), value.toDouble)
+    val environments = (for (i <- 1 to numOfEnv) yield {
+      val x = Random.nextInt % 100
+      val y = Random.nextInt % 100
+      val z = Random.nextInt % 100
+      val value = x * y * z + x * y + x * z + y * z + x + y + z + 1
+      (Map("a" -> x.toDouble, "b" -> y.toDouble, "c" -> z.toDouble), value.toDouble)
     }).toList
 
     val initialPopulation = new Population(numOfTrees, minConst, maxConst, numOfVars, maxHeight)
-    
+
     def generations(n: Int): List[Population] = if (n == 1) List(initialPopulation) else {
       val gens = generations(n - 1)
       val newPop = gens.head.nextGeneration(environments)
       newPop :: gens
     }
-    
+
     val gens = generations(numOfGens)
-    
-    println(gens.reverse.map(p => "Population " + (gens.length-gens.indexOf(p)) + " :\n" + 
-        {val tupl = p.getLowestFitness(environments); tupl._1.toString() + "\nFitness: " + tupl._2}).mkString("\n"))
-    
-    //println("\n\n" + gens(0).getLowestFitness(environments)._1 + "\n\nSimplified version: " + gens(0).getLowestFitness(environments)._1.simplify)
+
+    val endTime = System.currentTimeMillis() / 1000.0
+
+    //println(gens.reverse.map(p => "Population " + (gens.length - gens.indexOf(p)) + " :\n" +
+    //  { val tupl = p.getLowestFitness(environments); tupl._1.toString() + "\nFitness: " + tupl._2 }).mkString("\n"))
+
+    println({ val tupl = gens(0).getLowestFitness(environments); tupl._1.toString() + "\nFitness: " + tupl._2 })
+
+    println("Ended in " + (endTime - startTime) + " seconds\n")
+
+    gens(0).getLowestFitness(environments)._2 / numOfEnv
   }
 }
