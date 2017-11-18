@@ -1,5 +1,3 @@
-package main
-
 import scala.util.Random
 
 /**
@@ -7,7 +5,7 @@ import scala.util.Random
  */
 object main {
   def main(args: Array[String]) {
-    mainMultithread(args)
+    mainNormal(args)
   }
   
   def mainNormal(args: Array[String]) = {
@@ -35,7 +33,7 @@ object main {
     val numOfSims = 100
 
     val startTime = System.currentTimeMillis / 1000.0
-    val tasks: Seq[Future[Double]] = for (i <- (1 to numOfSims)) yield future {
+    val tasks: Seq[Future[Double]] = for (i <- (1 to numOfSims)) yield Future {
       //println("Executing task " + i)
       GPTrees.run
     }
